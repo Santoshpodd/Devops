@@ -5,9 +5,10 @@
 
 
 resource "azurerm_public_ip" "PIP" {
-  name                = "testpip01"
-  resource_group_name = "HCL-CI-RG01"
-  location            = "centralindia"
+  for_each = var.vm_map
+  name               = each.value.PIP_name
+  resource_group_name = each.value.resource_group_name
+  location            = each.value.location
   allocation_method   = "Static"
 }
 
@@ -25,16 +26,58 @@ resource "azurerm_public_ip" "PIP" {
 #   address_prefixes     = ["10.0.2.0/24"]
 # }
 
+data "azurerm_virtual_network" "vnet" {
+  for_each = var.vm_map
+    name                = each.value.virtual_network_name
+    resource_group_name = each.value.resource_group_name
+}
+
+data "azurerm_subnet" "subnet" {
+  for_each = var.vm_map
+     name                 = each.value.subnet_name
+     virtual_network_name = each.value.virtual_network_name
+    resource_group_name  = each.value.resource_group_name
+}
+
+data "azurerm_key_vault" "kv" {
+  for_each = var.vm_map
+     name                = each.value.kv_name
+     resource_group_name = each.value.resource_group_name
+}
+
+resource "random_password" "password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+
+}
+
+resource "azurerm_key_vault_secret" "username" {
+  for_each = var.vm_map
+  name         = "vmusername"
+  value        = "Locadmin"
+  key_vault_id = data.azurerm_key_vault.kv[each.key].id
+}
+
+resource "azurerm_key_vault_secret" "password" {
+  for_each = var.vm_map
+  name         = "${each.value.vm_name}-password"
+  value        = random_password.password.result
+  key_vault_id = data.azurerm_key_vault.kv[each.key].id
+}
+
 resource "azurerm_network_interface" "Nic" {
-  name                = "niccard01"
-  location            = "centralindia"
-  resource_group_name = "HCL-CI-RG01"
+
+for_each = var.vm_map
+  name                = "${each.value.vm_name}-nic"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
 
   ip_configuration {
     name                          = "IPConfig01"
-    subnet_id                     = azurerm_subnet.subnet01.id  #need to be put subnetid when from existing id, 
+    subnet_id                     = data.azurerm_subnet.subnet[each.key].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id = azurerm_public_ip.PIP.id
+    public_ip_address_id = azurerm_public_ip.PIP[each.key].id
   }
 }
 
@@ -51,13 +94,15 @@ resource "azurerm_network_interface" "Nic" {
 # }
 
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                = "test-01"
-  resource_group_name = "HCL-CI-RG01"
-  location            = "centralindia"
-  size                = "Standard_F2"
+  for_each = var.vm_map
+  name                = each.value.vm_name
+  resource_group_name = each.value.resource_group_name
+  location            = each.value.location
+  size                = each.value.size
   admin_username      = "adminuser"
   admin_password      = "Admin@123456789"
-  network_interface_ids = [azurerm_network_interface.Nic.id]
+  disable_password_authentication = "false"
+  network_interface_ids = [azurerm_network_interface.Nic[each.key].id]
 
  os_disk {
     caching              = "ReadWrite"

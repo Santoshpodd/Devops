@@ -8,6 +8,6 @@
 #   description = "this resource will be used for UAT environment"
 # }
 
-variable "RG_map" {
+variable "RG_details" {
   type = map(any)
 }

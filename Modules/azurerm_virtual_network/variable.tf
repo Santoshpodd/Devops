@@ -1,3 +1,3 @@
-variable "vnet_map" {
+variable "vnet_details" {
   type = map(any)
 }

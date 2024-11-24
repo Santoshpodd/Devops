@@ -1,3 +1,3 @@
-variable "subnet_map" {
+variable "subnet_details" {
   type = map(any)
 }
